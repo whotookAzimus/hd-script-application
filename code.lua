@@ -1,13 +1,14 @@
 --!nocheck 
+-- Since mods apparently need me to add damn comments to my code, here you go.
 
 --[[ Services ]]--
-
+-- defining Services
 local collectionService = game:GetService("CollectionService")
 local players = game:GetService("Players")
 local rs = game:GetService("ReplicatedStorage")
 
 --[[ Events ]]--
-
+-- Defining remove events and the such
 local eventsFolder = rs:WaitForChild("Combat"):WaitForChild("Melee"):WaitForChild("Events")
 
 local createWeaponHandlerUponSpawnRF = eventsFolder:WaitForChild("CreateWeaponHandlerUponSpawn")
@@ -35,12 +36,13 @@ local finishCastingRE = eventsFolder:WaitForChild("FinishCasting")
 local hitSomethingRE = eventsFolder:WaitForChild("HitSomething")
 
 --[[ Modules ]]--
-
+-- Defining all used modules
 local toClients = require(rs:WaitForChild("Combat"):WaitForChild("Melee"):WaitForChild("Modules"):WaitForChild("ToClients"))
 local weaponSettingsList = require(rs:WaitForChild("Combat"):WaitForChild("Melee"):WaitForChild("Modules"):WaitForChild("WeaponSettingsList"))
 
 --[[ CombatStates ]]--
 
+-- These are the combat state values that the weapon handler can be in.
 local combatStateValues = {
 	["None"] = "None",
 	["M1"] = "M1",
@@ -51,8 +53,10 @@ local combatStateValues = {
 
 --[[ WeaponHandlers ]]--
 
+-- A table of all the weapon handlers in the server.
 local weaponHandlers = {}
 
+-- A template for the weapon handler.
 local weaponHandlerTemplate = {
 	["CurrentState"] = combatStateValues.None,
 	["LastState"] = combatStateValues.None,
@@ -72,7 +76,7 @@ local weaponHandlerTemplate = {
 }
 
 --[[ Special Functions ]]--
-
+-- Special util functions that are used in the script.
 local function deepCopy(tableToCopy)
 	local copy = {}
 
@@ -93,16 +97,20 @@ local function changeWeaponHandlerState(weaponHandler, currentState, lastState: 
 end
 
 --[[ Events ]]--
+-- All the code inside this block relates to player events.
 
+-- All the code inside this block relates to when the player spawns.
 local WhenThePlayerSpawns do
 	createWeaponHandlerUponSpawnRF.OnServerInvoke = function(player)
 		if not weaponHandlers[player] or weaponHandlers[player].PlayerHasDied then
 			weaponHandlers[player] = deepCopy(weaponHandlerTemplate)
 			print("Weapon handler for player: ", player.Name, " has now been created.")
+			-- if they do not have one or are already dead then create a new one
 		end
 	end
 
 	editWeaponHolsterRE.OnServerEvent:Connect(function(player, isVisible, weaponName)
+		-- remote that edits whether their holster (the physical weapon the player sees on their body) is visible or not (play the game, you'll get it)
 		local char = player.Character
 
 		if weaponHandlers[player] and not weaponHandlers[player].PlayerHasDied then
@@ -110,21 +118,26 @@ local WhenThePlayerSpawns do
 
 			local holsterAccessory = weaponHandler.HolsterAccessory or rs:WaitForChild("Combat"):WaitForChild("Melee"):WaitForChild("Swords"):WaitForChild(weaponName):WaitForChild("Assets"):WaitForChild("Holstering"):WaitForChild("HolsterAccessory"):Clone()
 			weaponHandler.HolsterAccessory = holsterAccessory
+			-- define their holster accessory and set it to the weapon handler (this code looks a little weird now that i look back at it)
 
 			if holsterAccessory.Parent ~= char then
 				holsterAccessory.Parent = char
+				-- if the holster accessory is not parented to the player's character then parent it to the player's character 🧠
 			end
 
 			for i, descendant in pairs(holsterAccessory:WaitForChild("Handle"):WaitForChild("Visible"):GetDescendants()) do
 				if descendant:IsA("BasePart") then
 					descendant.Transparency = isVisible and 0 or 1
+					-- whenever this event is fired it will change the transparency of the weapon's holster accessory depending on what isVisible is
 				end
 			end
 		end
 	end)
 end
 
+-- All the code inside this block relates to when the player dies.
 local WhenThePlayerDies do
+	-- this should be a special fn lol, but it's not.
 	local function checkIfHumanoidHasDied(hum: Humanoid)
 		hum.StateChanged:Connect(function(oldState, newState)
 			if newState == Enum.HumanoidStateType.Dead then
@@ -143,12 +156,13 @@ local WhenThePlayerDies do
 		end)
 	end
 
+	-- check if existing humanoid dies
 	for i, descendant in ipairs(workspace:GetDescendants()) do
 		if descendant:IsA("Humanoid") then
 			checkIfHumanoidHasDied(descendant)
 		end
 	end
-
+	-- check whenever any new humanoid dies
 	workspace.DescendantAdded:Connect(function(descendant)
 		if descendant:IsA("Humanoid") then
 			checkIfHumanoidHasDied(descendant)
@@ -156,6 +170,7 @@ local WhenThePlayerDies do
 	end)
 end
 
+-- All the code inside this block relates to when the player equips a tool.
 local WhenThePlayerEquipsATool do
 	equipToolRF.OnServerInvoke = function(player, tool)
 		if weaponHandlers[player] and not weaponHandlers[player].PlayerHasDied then
@@ -167,11 +182,13 @@ local WhenThePlayerEquipsATool do
 			if toClients[tool.Name] then
 				local toClient = toClients[tool.Name]
 				toClient.toClients("Equip", {player.Character})
+				-- do the equip fx on all clients
 			end
 		end
 	end
 end
 
+-- All the code inside this block relates to when the player unequips a tool.
 local WhenThePlayerUnequipsATool do
 	unequipToolRF.OnServerInvoke = function(player)
 		local char = player.Character
@@ -198,6 +215,7 @@ local WhenThePlayerUnequipsATool do
 	end
 end
 
+-- All the code inside this block relates to when the player m1s (clicks).
 local WhenThePlayerM1s do
 	M1StartsRF.OnServerInvoke = function(player, M1Stage, delayToBeginCasting, delayToStopCasting)
 		local weaponHandler = weaponHandlers[player]
@@ -209,6 +227,7 @@ local WhenThePlayerM1s do
 		if weaponHandler and not weaponHandler.PlayerHasDied and weaponHandler.Weapon and not weaponHandler.IsParrying and not weaponHandler.IsCasting and weaponHandler.CurrentState == combatStateValues.None then
 			changeWeaponHandlerState(weaponHandler, combatStateValues.M1)
 			weaponHandler.M1Stage = M1Stage
+			-- change the m1 stage (1, 2, 3, etc.)
 
 			if delayToBeginCasting then
 				task.delay(delayToBeginCasting, function()
@@ -217,12 +236,14 @@ local WhenThePlayerM1s do
 				end)
 			else
 				beginCastingRE:FireClient(player)
+				-- start casting
 			end
 
 			if delayToStopCasting then
 				task.delay(delayToStopCasting, function()
 					weaponHandler.IsCasting = false
 					finishCastingRE:FireClient(player)
+					-- stop casting
 				end)
 			end
 
@@ -232,6 +253,7 @@ local WhenThePlayerM1s do
 				if toClients[weaponHandler.WeaponName] then
 					local toClient = toClients[weaponHandler.WeaponName]
 					toClient.toClients("Attack", {player.Character, M1Stage == #wpnSettings.Assets.Animations.M1})
+					-- do attack fx on all clients
 				end
 			end
 
@@ -245,33 +267,41 @@ local WhenThePlayerM1s do
 		if weaponHandler and weaponHandler.CurrentState == combatStateValues.M1 then
 			changeWeaponHandlerState(weaponHandler, combatStateValues.None)
 			weaponHandler.M1Stage = newStage
+			-- set the m1 stage to the new stage
 
 			if toClients[weaponHandler.WeaponName] then
 				local toClient = toClients[weaponHandler.WeaponName]
 				toClient.toClients("AttackEnding", {player.Character})
+				-- do attack fx on all clients
 			end
 
 			if weaponHandler.IsCasting then
 				weaponHandler.IsCasting = false
 				finishCastingRE:FireClient(player)
+				-- stop casting
 			end
 		end
 	end
 end
 
+-- All the code inside this block relates to when the player uses their special attack.
 local WhenThePlayerUsesTheirSpecial do
 	specialStartsRF.OnServerInvoke = function(player, delayToBeginCasting, delayToStopCasting, reqDamage)
 		local weaponHandler = weaponHandlers[player]
-
+		
+		-- if they are alive, they have a weapon, they are not parrying, they are not already attacking and are in a neutral state
 		if weaponHandler and not weaponHandler.PlayerHasDied and weaponHandler.Weapon and not weaponHandler.IsParrying and not weaponHandler.IsCasting and weaponHandler.CurrentState == combatStateValues.None and weaponHandler.AccumulatedDamage >= reqDamage then
 			changeWeaponHandlerState(weaponHandler, combatStateValues.Special)
 			weaponHandler.AccumulatedDamage = 0
 			accumulatedDamageRE:FireClient(player, weaponHandler.AccumulatedDamage)
+			-- reset the accumulated damage and fire client to change the ui
+
 
 			if delayToBeginCasting then
 				task.delay(delayToBeginCasting, function()
 					weaponHandler.IsCasting = true
 					beginCastingRE:FireClient(player)
+					-- begin casting (hit detection is on the client)
 				end)
 			else
 				beginCastingRE:FireClient(player)
@@ -281,6 +311,7 @@ local WhenThePlayerUsesTheirSpecial do
 				task.delay(delayToStopCasting, function()
 					weaponHandler.IsCasting = false
 					finishCastingRE:FireClient(player)
+					-- finish casting rays on the client
 				end)
 			end
 
@@ -290,34 +321,40 @@ local WhenThePlayerUsesTheirSpecial do
 
 	specialFinishesRF.OnServerInvoke = function(player)
 		local weaponHandler = weaponHandlers[player]
-
+		
+		-- if they are in an ideal state to finish casting
 		if weaponHandler and not weaponHandler.PlayerHasDied and weaponHandler.Weapon and not weaponHandler.IsParrying and weaponHandler.CurrentState == combatStateValues.Special then
 			changeWeaponHandlerState(weaponHandler, combatStateValues.None)
 			finishCastingRE:FireClient(player)
-
+			-- finish casting 🤯
 			return true
 		end
 	end
 end
 
+-- All the code inside this block relates to when the player hits something (hit validation).
 local WhenThePlayerHitsSomething do
 	hitSomethingRE.OnServerEvent:Connect(function(player, whatWasHit: Instance)
 		local weaponHandler = weaponHandlers[player]
 
 		local wpnSettings = weaponSettingsList[weaponHandler.WeaponName]
+		-- grabs the weapon settings from the weapon settings list
 
 		if not wpnSettings then
 			return
 		end
+		-- i know the readers are intelligent enough to get this one
 
-		if weaponHandler and weaponHandler.IsCasting then
-			if weaponHandler.CurrentState == combatStateValues.M1 then
-				if whatWasHit and whatWasHit:IsA("Humanoid") then
+		if weaponHandler and weaponHandler.IsCasting then --If they have a wpnhandler and are casting an attack
+			if weaponHandler.CurrentState == combatStateValues.M1 then -- If they are using a normal m1
+				if whatWasHit and whatWasHit:IsA("Humanoid") then -- if something was hit and it is a humanoid (client hit detection just returns a humanoid)
 					--print("The humanoid with a parent of: ", whatWasHit.Parent, " was hit!")
 
 					local victimChar, victimHum = whatWasHit.Parent, whatWasHit
 					local victimHumRP: BasePart = victimChar:WaitForChild("HumanoidRootPart")
 					local victimPlayer: Player? = players:GetPlayerFromCharacter(victimChar)
+
+					-- define the victim (who got hit)
 
 					if victimHum:GetState() == Enum.HumanoidStateType.Dead then
 						return
@@ -326,6 +363,7 @@ local WhenThePlayerHitsSomething do
 					if victimPlayer then
 						if player.Team and player.Team == victimPlayer.Team then
 							if not wpnSettings.Interaction.FriendlyFire.Enabled then
+								-- If they are on the same team and no friendly fire then dont hit them
 								return -- Friendly fire is not enabled
 							end
 						end
@@ -334,15 +372,18 @@ local WhenThePlayerHitsSomething do
 					local victimWeaponHandler = weaponHandlers[victimPlayer]
 
 					if victimWeaponHandler and victimWeaponHandler.CurrentState == combatStateValues.Parry then
-						--The player has been parried
+						-- if the victim that was hit was parrying, then the aggressor has been parried
 						local victimWeaponSettings = weaponSettingsList[victimWeaponHandler.WeaponName]
 
 						if victimWeaponSettings.Enabled.WeaponStunEnabled then
+							-- if they are using a weapon that can stun and has stun enabled
 							if player.Team and player.Team == victimPlayer.Team and not victimWeaponSettings.Interaction.FriendlyFire.StunsFriendlies then
 								print("cant stun friendlies")
 							else
 								changeWeaponHandlerState(weaponHandler, combatStateValues.Stunned)
 								stunClientRE:FireClient(player, victimWeaponSettings.Interaction.Stuns.StunWalkSpeed)
+
+								-- do the stun stuff
 
 								if toClients[weaponHandler.WeaponName] then
 									local toClient = toClients[weaponHandler.WeaponName]
@@ -350,6 +391,7 @@ local WhenThePlayerHitsSomething do
 								end
 
 								task.delay(victimWeaponSettings.Interaction.Stuns.ParryStunDuration, function()
+									-- unstun them after the stun duration
 									unstunClientRE:FireClient(player)
 									changeWeaponHandlerState(weaponHandler, combatStateValues.None)
 									print(weaponHandler.CurrentState)
@@ -362,8 +404,10 @@ local WhenThePlayerHitsSomething do
 						if toClients[weaponHandler.WeaponName] then
 							local toClient = toClients[weaponHandler.WeaponName]
 							toClient.toClients("AttackEnding", {player.Character})
+							-- end their attack early, since they were parried
 						end
 					else
+						-- if they were not parrying, then the aggressor has hit the victim
 						local isFinalStage = weaponHandler.M1Stage == #wpnSettings.Assets.Animations.M1 and true
 						local damage
 
@@ -380,11 +424,13 @@ local WhenThePlayerHitsSomething do
 						victimHum:TakeDamage(damage)
 						weaponHandler.AccumulatedDamage += damage
 						weaponHandler.ConsecutiveHits += 1
+						-- Deal damage, add to consecutive hits, and add to accumulated damage
 
 						accumulatedDamageRE:FireClient(player, weaponHandler.AccumulatedDamage)
 
 						if wpnSettings.Enabled.HitCounterEnabled then
 							hitCounterRE:FireClient(player, weaponHandler.ConsecutiveHits)
+							-- if they have the hit counter (UI that shows how many hits), fire to client
 
 							if weaponHandler.ConsecutiveHits > 0 then
 								local oldHitCounts = weaponHandler.ConsecutiveHits
@@ -401,12 +447,14 @@ local WhenThePlayerHitsSomething do
 						if toClients[weaponHandler.WeaponName] then
 							local toClient = toClients[weaponHandler.WeaponName]
 							toClient.toClients("Hit", {player, victimChar, victimPlayer, false})
+							-- configure hit effects on all clients
 						end
 					end
 				else
 					--print(whatWasHit.Name, " with a type of: ", whatWasHit.ClassName, " was hit by ", player.Name, "!")
 				end
 			elseif weaponHandler.CurrentState == combatStateValues.Special then
+				-- if they were doing the special attack, then do all the same stuff (more or less) as the normal attack (dont feel like explaining 500 lines, sorry readers lol)
 				if whatWasHit and whatWasHit:IsA("Humanoid") then
 					--print("The humanoid with a parent of: ", whatWasHit.Parent, " was hit!")
 
@@ -490,36 +538,45 @@ local WhenThePlayerHitsSomething do
 						end
 					end
 				else
-					--print(whatWasHit.Name, " with a type of: ", whatWasHit.ClassName, " was hit by ", player.Name, "!")
-				end
+					--print(whatWasHit.Name, " with `
 			end
 		end
 	end)
 end
 
+-- All this code inside this block relates to when the player parries (blocks a hit)
 local WhenThePlayerParries do
 	parryStartsRF.OnServerInvoke = function(player)
 		local weaponHandler = weaponHandlers[player]
 
+		-- If they are not dead, they have a weapon, they are not already parrying, attacking, and they are in a neutral state
 		if weaponHandler and not weaponHandler.PlayerHasDied and weaponHandler.Weapon and not weaponHandler.IsParrying and not weaponHandler.IsCasting and weaponHandler.CurrentState == combatStateValues.None then
 			changeWeaponHandlerState(weaponHandler, combatStateValues.Parry)
 			weaponHandler.IsParrying = true
 
+			-- configure parrying to true
+
 			if toClients[weaponHandler.WeaponName] then
 				local toClient = toClients[weaponHandler.WeaponName]
 				toClient.toClients("Parry", {player.Character})
+				-- Loads fx on client and reps to all clients
 			end
 
 			return true
 		end
 	end
 
+	-- When their parry ends
 	parryFinishesRF.OnServerInvoke = function(player)
 		local weaponHandler = weaponHandlers[player]
 
 		if weaponHandler and not weaponHandler.PlayerHasDied and weaponHandler.Weapon and weaponHandler.IsParrying and not weaponHandler.IsCasting and weaponHandler.CurrentState == combatStateValues.Parry then
 			changeWeaponHandlerState(weaponHandler, combatStateValues.None)
 			weaponHandler.IsParrying = false
+			-- configure parrying to false
 		end
 	end
 end
+
+
+-- happy, readers?
